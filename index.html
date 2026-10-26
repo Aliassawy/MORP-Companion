@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MORP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root{--acc:#5fd8ff;--lum:30;--ink:#f1e8da;--mut:#a79fb4;--bg:hsl(262 28% calc(7% + var(--lum)*.06%));--card:rgba(255,255,255,.045);--line:rgba(255,255,255,.1)}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 'Bricolage Grotesque',system-ui,sans-serif;min-height:100vh;transition:background 2s;font-variant-numeric:tabular-nums}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(55% 45% at 50% 26%,color-mix(in srgb,var(--acc) 20%,transparent),transparent)}
+header,main{position:relative;max-width:1080px;margin:auto;padding:0 20px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:14px 28px;padding-top:22px;padding-bottom:10px}
+h1{font-size:2.1rem;font-weight:800;letter-spacing:-.03em;color:var(--acc);transition:color .6s}
+nav{display:flex;gap:4px;flex:1}
+nav a{color:var(--mut);text-decoration:none;padding:6px 14px;border-radius:99px}
+nav a.on{background:var(--card);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+a:focus-visible,button:focus-visible,input:focus-visible,canvas:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.pills{display:flex;gap:8px;font-size:.85rem;color:var(--mut)}
+.pill{display:flex;align-items:center;gap:6px;padding:4px 11px;border-radius:99px;background:var(--card)}
+.pill i{width:8px;height:8px;border-radius:50%;background:#6b6478}
+.pill.ok i{background:#6ee7a0;box-shadow:0 0 8px #6ee7a0}
+#banner{background:#ffd75f1f;color:#ffe08a;padding:8px 14px;border-radius:12px;margin:10px 0;font-size:.9rem}
+section{padding:18px 0 60px}
+.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:28px;align-items:start}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
+.dev{background:linear-gradient(#2e2839,#1a1523);border-radius:36px;padding:26px 26px 18px;box-shadow:0 30px 70px #0009,inset 0 2px 0 #fff2,inset 0 -3px 0 #0007}
+.scr{position:relative;background:#03060a;border-radius:16px;padding:12px;box-shadow:inset 0 0 0 2px #000,inset 0 0 34px #000}
+.scr::after{content:"";position:absolute;inset:0;border-radius:16px;pointer-events:none;background:repeating-linear-gradient(#0000 0 3px,#0004 3px 4px)}
+#face{width:100%;aspect-ratio:2/1;image-rendering:pixelated;display:block;cursor:pointer;filter:drop-shadow(0 0 5px var(--acc))}
+.dfoot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;color:#8d85a0;font-size:.9rem}
+.dfoot b{font-weight:800;letter-spacing:.3em;color:#9b93ad}
+.eyes{display:flex;gap:10px}.eyes i{width:16px;height:16px;border-radius:50%;background:#0b0810;box-shadow:inset 0 0 0 3px #3a3347}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+button,.chip{font:inherit;color:var(--ink);background:var(--card);border:0;border-radius:99px;padding:7px 15px;cursor:pointer;box-shadow:inset 0 0 0 1px var(--line);transition:background .2s,transform .1s}
+button:hover{background:rgba(255,255,255,.1)}button:active{transform:scale(.96)}
+button.on{background:var(--acc);color:#10101a;font-weight:600}
+h2{font-size:1.25rem;font-weight:600;margin-bottom:12px}
+.card{background:var(--card);border-radius:22px;padding:20px 22px;box-shadow:inset 0 0 0 1px var(--line)}
+.stack{display:grid;gap:22px}
+.vit{display:grid;gap:15px}
+.vit div{display:grid;grid-template-columns:1fr auto;gap:2px 10px}
+.vit span{color:var(--mut);font-size:.88rem;text-align:right}
+.vit u{grid-column:1/-1;height:8px;border-radius:9px;background:#ffffff14;overflow:hidden;text-decoration:none}
+.vit u b{display:block;height:100%;width:50%;border-radius:9px;background:var(--acc);transition:width 1s,background .6s}
+ul{list-style:none;padding:0;display:grid;gap:8px;font-size:.93rem}
+li time{color:var(--mut);margin-right:10px}
+#chat{display:flex;flex-direction:column;gap:10px;min-height:320px;max-height:52vh;overflow:auto;padding:4px}
+.b{max-width:80%;padding:10px 15px;border-radius:20px;overflow-wrap:anywhere}
+.b.me{align-self:flex-end;background:var(--acc);color:#10101a;border-bottom-right-radius:6px}
+.b.bot{align-self:flex-start;background:#ffffff12;border-bottom-left-radius:6px}
+.b small{display:block;color:var(--mut);font-size:.78rem;margin-bottom:2px}
+.b.typing{animation:pulse 1s infinite}@keyframes pulse{50%{opacity:.4}}
+form{display:flex;gap:8px;margin-top:14px}
+input{flex:1;font:inherit;color:var(--ink);background:#00000040;border:0;border-radius:99px;padding:10px 18px;box-shadow:inset 0 0 0 1px var(--line)}
+.gauge{max-width:420px;margin:auto;color:var(--ink)}
+#tc{width:100%;height:320px;display:block}
+.leg{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:.88rem;color:var(--mut)}
+.leg i{display:inline-block;width:12px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle}
+#toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,80px);background:#f1e8da;color:#17121f;padding:10px 18px;border-radius:99px;transition:transform .3s;z-index:9}
+#toast.show{transform:translate(-50%,0)}
+p.n{color:var(--mut);font-size:.92rem;margin-top:10px}
+</style>
+</head>
+<body>
+<header>
+  <h1>MORP</h1>
+  <nav><a href="#home">Home</a><a href="#talk">Talk</a><a href="#room">Room</a><a href="#trends">Trends</a></nav>
+  <div class="pills"><span class="pill" id="p-srv"><i></i>Server</span><span class="pill" id="p-body"><i></i>Body</span></div>
+</header>
+<main>
+<div id="banner" hidden>The server isn’t reachable, so you’re seeing demo data. Start server.py and open this page at http://localhost:8000.</div>
+
+<section id="home"><div class="grid">
+  <div>
+    <div class="dev">
+      <div class="scr"><canvas id="face" width="128" height="64" tabindex="0" role="img" aria-label="MORP’s face. Click to pet."></canvas></div>
+      <div class="dfoot"><div class="eyes" title="The two IR sensors"><i></i><i></i></div><span id="cap">Click the face to pet it</span><b>MORP</b></div>
+    </div>
+    <div class="row" id="moods" aria-label="Pick a face"></div>
+    <div class="row"><button id="pet">Pet</button><button id="poke">Poke</button><button id="clock">Show clock</button><button id="wx">Show weather</button></div>
+  </div>
+  <div class="stack">
+    <div class="card"><h2>How MORP feels</h2><div class="vit" id="vit"></div></div>
+    <div class="card"><h2>Recent</h2><ul id="feed"><li>Nothing yet. Say hi in Talk.</li></ul></div>
+  </div>
+</div></section>
+
+<section id="talk" hidden><div class="card">
+  <h2>Talk to MORP</h2>
+  <div id="chat"></div>
+  <div class="row" id="quick"></div>
+  <form id="cf"><input id="ci" autocomplete="off" placeholder="Ask about the weather, the news, or just chat" aria-label="Message"><button class="on">Send</button></form>
+  <p class="n">Replies also show on the little screen, and your face picks match what MORP says.</p>
+</div></section>
+
+<section id="room" hidden><div class="grid">
+  <div class="card"><h2>Light in the room</h2>
+    <svg class="gauge" viewBox="0 0 180 112" role="img" aria-label="Room light level">
+      <defs><linearGradient id="g"><stop offset="0" stop-color="#4b4f9a"/><stop offset="1" stop-color="#ffd37a"/></linearGradient></defs>
+      <path d="M10 95A80 80 0 0 1 170 95" fill="none" stroke="#ffffff1a" stroke-width="10" stroke-linecap="round"/>
+      <path id="garc" d="M10 95A80 80 0 0 1 170 95" fill="none" stroke="url(#g)" stroke-width="10" stroke-linecap="round" stroke-dasharray="251.3" stroke-dashoffset="251.3" style="transition:stroke-dashoffset 1s"/>
+      <circle id="knob" r="9" cx="10" cy="95" fill="#cfd6ff" style="transition:cx 1s,cy 1s"/>
+      <text id="gp" x="90" y="82" text-anchor="middle" font-size="28" font-weight="700" fill="currentColor">–</text>
+      <text id="gl" x="90" y="102" text-anchor="middle" font-size="11" fill="#a79fb4">no reading</text>
+    </svg>
+    <p class="n" id="raw">The sensor sends a reading every 5 seconds.</p>
+  </div>
+  <div class="card"><h2>Calibrate</h2>
+    <p id="cal">Waiting for readings.</p>
+    <p class="n">Cover the sensor, then shine a flashlight on it. Put the lowest raw value in LIGHT_RAW_DARK and the highest in LIGHT_RAW_BRIGHT in mood_state.py.</p>
+    <p class="n">Light only nudges MORP’s energy: dark −12, dim −5, bright +6. It never puts MORP to sleep while you’re talking.</p>
+  </div>
+</div></section>
+
+<section id="trends" hidden><div class="card">
+  <h2>Trends</h2>
+  <div class="row" style="margin:0 0 14px" id="rng"><button data-m="15">15 min</button><button data-m="60" class="on">1 hour</button><button data-m="360">6 hours</button></div>
+  <canvas id="tc"></canvas><div class="leg" id="leg"></div>
+  <p class="n">History is recorded while this page is open and kept in your browser.</p>
+</div></section>
+</main>
+<div id="toast" role="status"></div>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const COL={normal:'#5fd8ff',happy:'#ffd75f',love:'#ff7aa8',surprised:'#f4f1ff',angry:'#ff6b5f',sad:'#7a9bff',smug:'#c79bff',sleepy:'#8d93bd',thinking:'#74e3b4'};
+const WORDS={happiness:[[25,'miserable'],[40,'down'],[60,'okay'],[80,'cheerful'],[101,'delighted']],energy:[[25,'very tired'],[45,'a bit tired'],[70,'fine'],[101,'energetic']],boredom:[[20,'not bored'],[50,'slightly bored'],[75,'bored'],[101,'neglected']],affection:[[25,'distant'],[50,'neutral'],[75,'fond'],[101,'devoted']]};
+const SER=[['h','#ffd75f','Happiness'],['e','#5fd8ff','Energy'],['b','#ff8a5f','Boredom'],['a','#ff7aa8','Affection'],['l','#e8e0cf','Light']];
+const RM=matchMedia('(prefers-reduced-motion:reduce)').matches;
+let S={happiness:60,energy:60,boredom:10,affection:40,light_pct:null,light_raw:null,light_label:null,online:false,mood:'normal',text:''};
+let server=null,wasBody=null,showMood='normal',showUntil=0,talkUntil=0,lastText=null,lo=1e9,hi=-1,feed=[],RANGE=60,accNow='',hist=[];
+try{hist=JSON.parse(localStorage.morpH||'[]')}catch{}
+const now=()=>Date.now(),esc=t=>String(t).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const pick=(v,w)=>(w.find(x=>v<x[0])||w.at(-1))[1];
+const idle=()=>S.energy<25?'sleepy':S.happiness>80?'happy':(S.boredom>70||S.happiness<35)?'sad':'normal';
+const cur=()=>now()<showUntil?showMood:idle();
+function show(m,ms,talk){showMood=m;showUntil=now()+ms;if(talk)talkUntil=now()+2500}
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),2600)}
+function log(m){feed.unshift({t:new Date(),m});feed.length=Math.min(feed.length,8);$('#feed').innerHTML=feed.map(f=>`<li><time>${f.t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</time>${esc(f.m)}</li>`).join('')}
+const post=(u,b)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>{if(!r.ok)throw 0;return r.json()});
+const api=(u,b)=>post(u,b).catch(()=>toast('Server not reachable'));
+
+/* ---------- the face (same 9 moods as the OLED) ---------- */
+const fc=$('#face').getContext('2d');
+function drawFace(m,t){
+  const c=fc,col=COL[m],bg='#03060a';
+  c.clearRect(0,0,128,64);c.fillStyle=c.strokeStyle=col;c.lineWidth=2;
+  const rb=(x,y,w,h,r)=>{c.beginPath();c.roundRect(x,y,w,Math.max(h,3),r);c.fill()};
+  const ring=(x,y,r,lw)=>{c.lineWidth=lw||2;c.beginPath();c.arc(x,y,r,0,7);c.stroke()};
+  const disc=(x,y,r)=>{c.beginPath();c.arc(x,y,r,0,7);c.fill()};
+  const arc=(x,y,r,a,b,lw)=>{c.lineWidth=lw;c.beginPath();c.arc(x,y,r,a,b);c.stroke()};
+  const tri=(a,b,d,e,f,g)=>{c.beginPath();c.moveTo(a,b);c.lineTo(d,e);c.lineTo(f,g);c.fill()};
+  const bt=t%4300,open=bt<220?Math.max(.1,Math.abs(bt-110)/110):1;
+  const bob=RM?0:Math.sin(t/500)*(m==='happy'?2:1.2),shake=m==='angry'&&!RM?(t/40%2<1?1:-1):0;
+  const g=m==='normal'&&!RM?Math.sin(t/1700)*6:0,oy=bob,P=Math.PI;
+  for(const left of [1,0]){
+    const cx=(left?36:92)+g+shake,cy=26+oy,n=left?1:-1;
+    if(m==='normal')rb(cx-14,cy-16*open,28,32*open,8);
+    else if(m==='happy')arc(cx,cy+6,12.5,P,0,4);
+    else if(m==='surprised'||m==='thinking'){
+      if(open<.4)rb(cx-14,cy-2,28,4,2);else{ring(cx,cy,15.5);
+        const a=t/450;m==='thinking'?disc(cx+6*Math.cos(a),cy+5*Math.sin(a),4):disc(cx+(t/90%2<1?1:-1),cy,5)}}
+    else if(m==='sad'){rb(cx-14,cy-10*open,28,26*open,8);c.lineWidth=2;c.beginPath();c.moveTo(cx-n*14,cy-13);c.lineTo(cx+n*14,cy-19);c.stroke();disc(cx-n*8,cy+19+(t/70%16),2)}
+    else if(m==='angry'){rb(cx-14,cy-12,28,28*open,6);c.fillStyle=bg;tri(cx-n*15,cy-13,cx+n*15,cy-13,cx+n*15,cy+2);c.fillStyle=col}
+    else if(m==='love'){const p=t/350%2<1?0:1;disc(cx-7,cy-5,7+p);disc(cx+7,cy-5,7+p);tri(cx-14-p,cy-2,cx+14+p,cy-2,cx,cy+14+p)}
+    else if(m==='sleepy')rb(cx-14,cy+4,28,4,2);
+    else if(m==='smug'){rb(cx-14,cy-3,28,17*open,6);c.fillRect(cx-15,cy-8,30,2)}
+  }
+  const mx=64+g/2;
+  if(t<talkUntil&&m!=='sleepy'){c.beginPath();c.ellipse(mx,53+oy,9,2+Math.floor(t/130%3)*2,0,0,7);c.fill()}
+  else if(m==='happy'||m==='love')arc(mx,46+oy,11,0,P,3);
+  else if(m==='surprised')ring(mx,54+oy,6);
+  else if(m==='sad')arc(mx,62+oy,9,P,0,3);
+  else if(m==='angry')arc(mx,61+oy,7,P,0,3);
+  else if(m==='smug'){c.lineWidth=2;c.beginPath();c.moveTo(mx-10,54+oy);c.lineTo(mx+6,54+oy);c.lineTo(mx+13,48+oy);c.stroke()}
+  else if(m==='sleepy')ring(mx,54+oy,3);
+  else if(m==='thinking')rb(mx-4,52+oy,16,4,2);
+  else rb(mx-10,52+oy,20,4,2);
+  c.font='9px sans-serif';
+  if(m==='sleepy')for(let i=0;i<3;i++){const k=(t+i*1000)%3000;c.fillText(i===1?'Z':'z',96+k/150,26-k/215)}
+  if(m==='thinking')for(let i=0;i<1+Math.floor(t/350%3);i++)disc(100+i*8,5,2);
+  if(m==='love')for(let k=0;k<2;k++){const y=60-((t/35+k*26)%52),x=k?119:8;disc(x-2,y,2);disc(x+2,y,2);tri(x-4,y+1,x+4,y+1,x,y+6)}
+}
+(function loop(){const m=cur();if(m!==accNow){accNow=m;document.documentElement.style.setProperty('--acc',COL[m]);$('#cap').textContent=(now()<showUntil?'Showing ':'Feeling ')+m;$$('#moods button').forEach(b=>b.classList.toggle('on',b.dataset.m===m))}
+  drawFace(m,now());requestAnimationFrame(loop)})();
+
+/* ---------- data ---------- */
+function demo(){const t=now()/1000,p=50+40*Math.sin(t/50);S={...S,happiness:60+20*Math.sin(t/40),energy:55+25*Math.sin(t/90),boredom:30+25*Math.sin(t/60),affection:45+15*Math.sin(t/70),light_pct:p,light_raw:Math.round(300+p*27),light_label:p<15?'dark':p<40?'dim':p<80?'normal':'bright',online:false}}
+async function poll(){
+  let ok=true;try{S=await (await fetch('/api/state',{cache:'no-store'})).json()}catch{ok=false;demo()}
+  if(ok!==server){if(server!==null)toast(ok?'Server connected':'Server lost');server=ok}
+  render();
+}
+function render(){
+  $('#banner').hidden=server;$('#p-srv').classList.toggle('ok',!!server);$('#p-body').classList.toggle('ok',!!S.online);
+  if(server&&wasBody!==null&&wasBody!==S.online)log(S.online?'MORP’s body connected':'MORP’s body went offline');
+  wasBody=S.online;
+  if(S.text&&S.text!==lastText){if(lastText!==null&&server){show(S.mood,10000,true);log(`MORP (${S.mood}): ${S.text}`)}lastText=S.text}
+  for(const k in WORDS){const v=Math.round(S[k]),r=$('#v-'+k);r.querySelector('b').style.width=v+'%';r.querySelector('span').textContent=v+' · '+pick(v,WORDS[k])}
+  document.documentElement.style.setProperty('--lum',S.light_pct==null?30:S.light_pct);
+  const p=S.light_pct;
+  if(p==null){$('#gp').textContent='–';$('#gl').textContent='no reading';return}
+  const q=p/100;$('#garc').style.strokeDashoffset=251.3*(1-q);
+  $('#knob').setAttribute('cx',90-80*Math.cos(Math.PI*q));$('#knob').setAttribute('cy',95-80*Math.sin(Math.PI*q));$('#knob').setAttribute('fill',p<35?'#cfd6ff':'#ffd37a');
+  $('#gp').textContent=Math.round(p)+'%';$('#gl').textContent='The room is '+S.light_label;
+  $('#raw').textContent='Raw sensor value: '+Math.round(S.light_raw);
+  if(server){lo=Math.min(lo,S.light_raw);hi=Math.max(hi,S.light_raw);$('#cal').textContent=`Seen since you opened this page: lowest ${Math.round(lo)}, highest ${Math.round(hi)}.`}
+}
+setInterval(()=>{if(!server)return;hist.push({t:now(),h:S.happiness,e:S.energy,b:S.boredom,a:S.affection,l:S.light_pct});hist=hist.filter(x=>x.t>now()-216e5);
+  if(hist.length%6===0)try{localStorage.morpH=JSON.stringify(hist)}catch{}
+  if(location.hash==='#trends')trends()},10000);
+function trends(){const c=$('#tc'),x=c.getContext('2d'),d=devicePixelRatio,w=c.width=c.clientWidth*d,h=c.height=c.clientHeight*d;
+  const span=RANGE*6e4,t0=now()-span,pts=hist.filter(p=>p.t>=t0);
+  x.strokeStyle='#ffffff14';x.lineWidth=d;for(let i=0;i<=4;i++){x.beginPath();x.moveTo(0,h*i/4);x.lineTo(w,h*i/4);x.stroke()}
+  if(pts.length<2){x.fillStyle='#a79fb4';x.font=`${15*d}px sans-serif`;x.fillText('Collecting data. Keep this page open and lines will appear.',16*d,h/2);return}
+  SER.forEach(([k,col])=>{x.strokeStyle=col;x.lineWidth=2.2*d;x.lineJoin='round';x.beginPath();let on=0;
+    pts.forEach(p=>{if(p[k]==null)return;const X=(p.t-t0)/span*w,Y=h-p[k]/100*h*.92-h*.04;on?x.lineTo(X,Y):x.moveTo(X,Y);on=1});x.stroke()})}
+
+/* ---------- controls ---------- */
+Object.keys(COL).forEach(m=>{const b=document.createElement('button');b.dataset.m=m;b.textContent=m;b.onclick=()=>{show(m,8000);api('/api/face',{mood:m,seconds:8});log('You picked the '+m+' face')};$('#moods').append(b)});
+$('#vit').innerHTML=Object.keys(WORDS).map(k=>`<div id="v-${k}"><strong>${k[0].toUpperCase()+k.slice(1)}</strong><span></span><u><b></b></u></div>`).join('');
+$('#leg').innerHTML=SER.map(s=>`<span><i style="background:${s[1]}"></i>${s[2]}</span>`).join('');
+const pet=()=>{show('love',3500);api('/api/touch',{kind:'pet'});log('You petted MORP')};
+$('#pet').onclick=pet;$('#face').onclick=pet;$('#face').onkeydown=e=>{if(e.key==='Enter'||e.key===' ')pet()};
+$('#poke').onclick=()=>{show('surprised',3000);api('/api/touch',{kind:'poke'});log('You poked MORP')};
+$('#clock').onclick=()=>api('/api/show',{what:'clock'});$('#wx').onclick=()=>api('/api/show',{what:'weather'});
+$$('#rng button').forEach(b=>b.onclick=()=>{RANGE=+b.dataset.m;$$('#rng button').forEach(x=>x.classList.toggle('on',x===b));trends()});
+
+/* ---------- chat ---------- */
+function bubble(cls,text,mood){const d=document.createElement('div');d.className='b '+cls;d.innerHTML=(mood?`<small>feeling ${mood}</small>`:'')+esc(text);$('#chat').append(d);d.scrollIntoView({block:'end'});return d}
+async function send(t){t=t.trim();if(!t)return;bubble('me',t);const w=bubble('bot typing','…');show('thinking',30000);
+  try{const r=await post('/api/chat',{text:t});w.remove();bubble('bot',r.reply,r.mood);show(r.mood,10000,true);lastText=r.reply;log(`MORP (${r.mood}): ${r.reply}`)}
+  catch{w.remove();bubble('bot','I can’t reach the server. Start server.py and open this page at http://localhost:8000.');show('sad',4000)}}
+$('#cf').onsubmit=e=>{e.preventDefault();const v=$('#ci').value;$('#ci').value='';send(v)};
+['What’s the weather today?','What time is it in Tokyo?','Search the latest news','Tell me something fun'].forEach(q=>{const b=document.createElement('button');b.textContent=q;b.onclick=()=>send(q);$('#quick').append(b)});
+bubble('bot','Hi. I can check the weather, tell the time anywhere and search the web. What do you need?');
+
+/* ---------- routing ---------- */
+function route(){const v=(location.hash||'#home').slice(1);$$('main>section').forEach(s=>s.hidden=s.id!==v);$$('nav a').forEach(a=>a.classList.toggle('on',a.hash==='#'+v));if(v==='trends')trends()}
+addEventListener('hashchange',route);addEventListener('resize',()=>location.hash==='#trends'&&trends());
+route();poll();setInterval(poll,1500);
+</script>
+</body>
+</html>

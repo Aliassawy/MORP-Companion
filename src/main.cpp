@@ -17,6 +17,11 @@ const int STATUS_LED  = 33;
 const int LDR_PIN     = 32;                 // ADC1 pin, works with Wi-Fi on
 const unsigned long LIGHT_SEND_MS = 5000;
 
+
+const Mood POKE_REACTS[] = { MOOD_SURPRISED, MOOD_SCARED, MOOD_ANGRY, MOOD_CONFUSED };
+const Mood PET_REACTS[]  = { MOOD_HAPPY, MOOD_LOVE, MOOD_SHY, MOOD_WINK, MOOD_CHILL };
+template <size_t N> Mood pickMood(const Mood (&a)[N]) { return a[random(N)]; }
+
 WebSocketsClient webSocket;
 unsigned long ledOffAt = 0;
 unsigned long nextLightSend = 0;
@@ -112,8 +117,8 @@ void loop() {
 
   bool ir1State = digitalRead(IR_SENSOR_1);
   bool ir2State = digitalRead(IR_SENSOR_2);
-  if (ir1State == LOW && lastIr1State == HIGH) trigger("IR1_Poke", MOOD_SURPRISED, 2000);
-  if (ir2State == LOW && lastIr2State == HIGH) trigger("IR2_Pet", MOOD_HAPPY, 3000);
+  if (ir1State == LOW && lastIr1State == HIGH) trigger("IR1_Poke", pickMood(POKE_REACTS), 2200);
+  if (ir2State == LOW && lastIr2State == HIGH) trigger("IR2_Pet",  pickMood(PET_REACTS), 3000);
   lastIr1State = ir1State;
   lastIr2State = ir2State;
 

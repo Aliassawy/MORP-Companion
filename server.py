@@ -1,5 +1,7 @@
 import asyncio
 import json
+import logging
+import os
 import re
 import threading
 import time
@@ -10,10 +12,13 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import requests
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import Body, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, JSONResponse
 from groq import Groq
 from database import init_db, get_active_prompt, get_all_facts, save_fact, update_persona
 from mood_state import MoodState
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 init_db()
 client = Groq(api_key="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")
@@ -24,17 +29,50 @@ HOME_TZ = "Africa/Cairo"
 state = MoodState()
 
 MOODS = {
-    "normal":    "calm, neutral, nothing special going on",
-    "happy":     "pleased, amused, friendly, cheerful",
-    "love":      "affectionate, flattered, adored, enjoying being petted",
-    "surprised": "startled, shocked, caught off guard",
-    "angry":     "annoyed, offended, fed up, furious",
-    "sad":       "hurt, lonely, disappointed, neglected",
-    "smug":      "sarcastic, teasing, proud, snarky",
-    "sleepy":    "bored, tired, yawning",
-    "thinking":  "pondering a hard question",
+    "normal":     "calm, neutral, nothing special (use only when nothing else fits)",
+    "happy":      "pleased, friendly, cheerful",
+    "love":       "affectionate, adored, loving the attention",
+    "surprised":  "startled, caught off guard",
+    "angry":      "annoyed, offended, furious",
+    "sad":        "hurt, lonely, disappointed",
+    "smug":       "sarcastic, teasing, proud",
+    "sleepy":     "tired, drowsy (never while chatting)",
+    "thinking":   "pondering a hard question",
+    "excited":    "thrilled, great news, can't wait",
+    "laugh":      "found something really funny",
+    "wink":       "playful, joking, sharing a secret",
+    "shy":        "embarrassed, flustered, complimented",
+    "cry":        "heartbroken, sobbing, very upset",
+    "scared":     "frightened, alarmed",
+    "confused":   "doesn't understand, puzzled",
+    "dizzy":      "overwhelmed, too much at once",
+    "dead":       "dying of embarrassment or laughter, comic doom",
+    "bored":      "unimpressed, nothing interesting going on",
+    "suspicious": "doubtful, side-eyeing a claim",
+    "starstruck": "amazed, in awe, dazzled",
+    "evil":       "scheming, mischievous plan",
+    "silly":      "goofy, playful, tongue out",
+    "kiss":       "thankful affection, sending a kiss",
+    "worried":    "anxious, concerned for the user",
+    "sick":       "unwell, queasy",
+    "focused":    "concentrating, determined, working on it",
+    "chill":      "relaxed, content, vibing",
+    "asleep":     "fast asleep (never while chatting)",
+    "yawn":       "yawning",
+    "disgusted":  "grossed out, disapproving",
+    "pleading":   "begging with puppy eyes",
+    "cool":       "smooth, confident, feeling cool",
+    "glitch":     "malfunctioning, a system-error joke",
 }
 
+ALIASES = {
+    "annoyed": "angry", "mad": "angry", "furious": "angry", "joy": "happy", "glad": "happy",
+    "amused": "laugh", "embarrassed": "shy", "nervous": "worried", "anxious": "worried",
+    "afraid": "scared", "tired": "sleepy", "curious": "thinking", "proud": "smug",
+    "sarcastic": "smug", "sorry": "sad", "lonely": "sad", "grateful": "kiss",
+    "skeptical": "suspicious", "playful": "wink", "mischievous": "evil", "amazed": "starstruck",
+    "sleeping": "asleep", "determined": "focused", "relaxed": "chill",
+}
 SENSORS = {
     "IR1_Poke": ("poke", "poked your face"),
     "IR2_Pet":  ("pet", "petted you"),
@@ -50,6 +88,7 @@ recent = deque(maxlen=5)
 history = deque(maxlen=10)
 touches = {}
 llm_lock = threading.Lock()
+last_reply = {"mood": "normal", "text": ""}   # what the website shows as MORP's latest words
 
 
 # ---------- Sending to the ESP32 ----------
@@ -87,6 +126,7 @@ async def state_loop():
 async def lifespan(app):
     global main_loop
     main_loop = asyncio.get_running_loop()
+    logging.getLogger("uvicorn.access").disabled = True   # no HTTP log spam
     task = asyncio.create_task(state_loop())
     yield
     task.cancel()
@@ -210,6 +250,7 @@ def parse_and_save_facts(response_text: str) -> str:
 def parse_mood(text: str):
     tag = re.search(r"\[MOOD:\s*(\w+)\s*\]", text, re.I)
     mood = tag.group(1).lower() if tag else "normal"
+    mood = ALIASES.get(mood, mood)
     if mood not in MOODS:
         mood = "normal"
     return mood, re.sub(r"\[MOOD:\s*\w+\s*\]", "", text, flags=re.I).strip()
@@ -250,7 +291,7 @@ def chat(messages: list, use_tools: bool) -> str:
 def query_morp(user_input: str, remember: bool = True, use_tools: bool = True, source: str = "chat"):
     """Returns (mood, reply_text). source is 'chat' or 'touch'."""
     mood_lines = "\n".join(f"- {name}: {desc}" for name, desc in MOODS.items())
-    last = "\n".join(f"- [{m}] {t}" for m, t in recent) or "- (none yet)"
+    recent_lines = "\n".join(f"- [{m}] {t}" for m, t in recent) or "- (none yet)"
 
     system = (
         f"{get_active_prompt()}\n\n"
@@ -261,7 +302,7 @@ def query_morp(user_input: str, remember: bool = True, use_tools: bool = True, s
         f"for example [MOOD: happy], chosen from:\n{mood_lines}\n"
         f"Pick the mood that matches how you genuinely feel about what just happened "
         f"or what you are saying. Use the whole range. Do not default to smug, and do "
-        f"not reuse the mood or wording of your recent replies:\n{last}\n"
+        f"not reuse the mood or wording of your recent replies:\n{recent_lines}\n"
         f"------------------\n\n"
         f"--- ASSISTANT RULES ---\n"
         f"You are also the user's personal assistant. The user lives in {HOME_CITY}, Egypt. "
@@ -283,18 +324,86 @@ def query_morp(user_input: str, remember: bool = True, use_tools: bool = True, s
     text = parse_and_save_facts(text)
 
     # No falling asleep mid-conversation
-    if source == "chat" and mood == "sleepy" and not SLEEP_WORDS.search(user_input):
+    if source == "chat" and mood in ("sleepy", "asleep") and not SLEEP_WORDS.search(user_input):
         mood = "normal"
 
     state.felt(mood)
     recent.append((mood, text))
+    last_reply.update(mood=mood, text=text)   # the website reads this
     if remember:
         history.append({"role": "user", "content": user_input})
         history.append({"role": "assistant", "content": f"[MOOD: {mood}] {text}"})
     return mood, text
 
 
-# ---------- ESP32 connection ----------
+# ---------- Website ----------
+@app.get("/")
+async def serve_site():
+    return FileResponse(os.path.join(BASE_DIR, "index.html"))
+
+
+@app.get("/api/state")
+async def api_state():
+    state.tick()
+    light = state.light()
+    s = state.s
+    return {
+        "happiness": s["happiness"], "energy": s["energy"],
+        "boredom": s["boredom"], "affection": s["affection"],
+        "light_pct": light[1] if light else None,
+        "light_raw": light[2] if light else None,
+        "light_label": light[0] if light else None,
+        "online": esp_ws is not None,
+        "mood": last_reply["mood"], "text": last_reply["text"],
+    }
+
+
+@app.post("/api/face")
+async def api_face(d: dict = Body(...)):
+    mood = d.get("mood", "normal")
+    if mood not in MOODS:
+        mood = "normal"
+    await send_to_esp({"type": "face", "mood": mood, "seconds": int(d.get("seconds", 6))})
+    return {"ok": True}
+
+
+@app.post("/api/show")
+async def api_show(d: dict = Body(...)):
+    what = d.get("what")
+    if what in ("clock", "weather"):
+        await send_to_esp({"type": what, "seconds": 8})
+    return {"ok": True}
+
+
+@app.post("/api/touch")
+async def api_touch(d: dict = Body(...)):
+    if d.get("kind") == "pet":
+        state.pet()
+        await send_to_esp({"type": "face", "mood": "love", "seconds": 4})
+    else:
+        state.poke()
+        await send_to_esp({"type": "face", "mood": "surprised", "seconds": 3})
+    return {"ok": True}
+
+
+@app.post("/api/chat")
+async def api_chat(d: dict = Body(...)):
+    text = (d.get("text") or "").strip()
+    if not text:
+        return {"mood": "normal", "reply": ""}
+    state.chat()
+    await send_to_esp({"type": "face", "mood": "thinking", "seconds": 25})
+    try:
+        mood, reply = await asyncio.to_thread(query_morp, text)
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        await send_to_esp({"type": "face", "mood": "sad", "seconds": 3})
+        return JSONResponse({"error": str(e)}, status_code=500)
+    await send_to_esp({"type": "say", "mood": mood, "text": to_ascii(reply)})
+    return {"mood": mood, "reply": reply}
+
+
+# ---------- ESP32 connection (only the ESP32 connects here) ----------
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     global esp_ws, busy
@@ -361,6 +470,7 @@ async def websocket_endpoint(websocket: WebSocket):
 # ---------- Terminal ----------
 def terminal_chat_loop():
     print("\n================ MORP TERMINAL ================")
+    print("• Website: http://localhost:8000")
     print("• Type to chat (it can check weather, time and search the web).")
     print("• '/state'                  show MORP's current feelings + light")
     print("• '/light'                  show the light sensor (for calibration)")
@@ -417,6 +527,17 @@ def terminal_chat_loop():
             secs = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 6
             send_from_thread({"type": "face", "mood": mood, "seconds": secs})
 
+        elif user_msg.startswith("/say "):      # test the screen without the AI
+            text = to_ascii(user_msg[5:])
+            print("Sending to screen:", text)
+            send_from_thread({"type": "say", "mood": "happy", "text": text})
+
+        elif user_msg == "/demo":               # shows every face for 3 seconds
+            for m in MOODS:
+                print(m)
+                send_from_thread({"type": "face", "mood": m, "seconds": 3})
+                time.sleep(3.2)
+
         else:
             state.chat()
             send_from_thread({"type": "face", "mood": "thinking", "seconds": 25})
@@ -431,6 +552,14 @@ def terminal_chat_loop():
 
 
 if __name__ == "__main__":
+    import copy
     import uvicorn
+    from uvicorn.config import LOGGING_CONFIG
+
+    # Silence uvicorn's per-request access lines so they don't bury your chat
+    log_config = copy.deepcopy(LOGGING_CONFIG)
+    log_config["loggers"]["uvicorn.access"]["handlers"] = []
+    log_config["loggers"]["uvicorn.access"]["propagate"] = False
+
     threading.Thread(target=terminal_chat_loop, daemon=True).start()
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_config=log_config)
