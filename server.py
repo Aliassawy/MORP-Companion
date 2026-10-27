@@ -406,6 +406,7 @@ async def api_chat(d: dict = Body(...)):
 # ---------- ESP32 connection (only the ESP32 connects here) ----------
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
     global esp_ws, busy
     await websocket.accept()
     esp_ws = websocket

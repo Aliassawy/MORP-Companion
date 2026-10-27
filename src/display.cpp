@@ -20,7 +20,7 @@ static const bool IDLE_FIDGETS = true;      // rare wink / silly face while idle
 static const int  TYPE_CPS = 45;            // typewriter speed, 0 = show text instantly
 static unsigned long SLEEP_AFTER_MS = 120000UL;           // drowsy after this much idle time
 static const unsigned long ASLEEP_EXTRA_MS = 20000UL;     // then fully asleep this much later
-static const unsigned long POPUP_EVERY_MS = 45000UL;      // idle: clock/weather
+static const unsigned long POPUP_EVERY_MS = 120000UL;      // idle: clock/weather
 static const unsigned long POPUP_SHOW_MS  = 5000UL;
 static const unsigned long TALK_MS        = 1500UL;       // talking face before the text
 static const unsigned long AFTERGLOW_MS   = 3500UL;       // mood stays after the text ends

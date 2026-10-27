@@ -76,6 +76,23 @@ void trigger(const char* sensor, Mood m, unsigned long ms) {
   webSocket.sendTXT(msg);
 }
 
+bool servicesUp = false;
+
+void startServices() {
+  // Clock: Cairo time (EET/EEST), synced from NTP
+  configTzTime("EET-2EEST,M4.5.5/0,M10.5.4/24", "pool.ntp.org", "time.google.com");
+
+  ArduinoOTA.setHostname("morp-esp32");
+  ArduinoOTA.begin();
+
+  webSocket.begin(websocket_server, websocket_port, "/ws");
+  webSocket.onEvent(webSocketEvent);
+  webSocket.setReconnectInterval(5000);
+
+  servicesUp = true;
+  Serial.println("[NET] Services started");
+}
+
 // ---------- Setup / Loop ----------
 void setup() {
   Serial.begin(115200);
@@ -87,33 +104,45 @@ void setup() {
   displayBegin();
   displayMessage("Starting...");
 
+  WiFi.persistent(false);
+  WiFi.disconnect(true);
+  delay(100);
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+  WiFi.setSleep(false);          // faster, steadier WebSocket
+
   WiFi.begin(ssid, password);
   Serial.print("Connecting to Wi-Fi");
   displayMessage("WiFi...");
-  while (WiFi.status() != WL_CONNECTED) {
+
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 30) {   // up to 15 seconds
     delay(500);
     Serial.print(".");
+    attempts++;
   }
-  Serial.println("\nWi-Fi Connected!");
-  Serial.println(WiFi.localIP());
 
-  // Clock: Cairo time (EET, with Egypt's daylight saving), synced from the internet
-  configTzTime("EET-2EEST,M4.5.5/0,M10.5.4/24", "pool.ntp.org", "time.google.com");
-
-  displayMessage("Connected!");
-  delay(800);
-
-  ArduinoOTA.setHostname("morp-esp32");
-  ArduinoOTA.begin();
-
-  webSocket.begin(websocket_server, websocket_port, "/ws");
-  webSocket.onEvent(webSocketEvent);
-  webSocket.setReconnectInterval(5000);
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWi-Fi Connected!");
+    Serial.println(WiFi.localIP());
+    displayMessage("Connected!");
+    delay(800);
+    startServices();
+  } else {
+    Serial.println("\n[ERROR] Wi-Fi Connection Failed! Will keep retrying.");
+    displayMessage("WiFi Fail!");
+    delay(2000);
+  }
 }
 
 void loop() {
-  ArduinoOTA.handle();
-  webSocket.loop();
+  // Wi-Fi came back after a failed boot: start the network services now
+  if (!servicesUp && WiFi.status() == WL_CONNECTED) startServices();
+
+  if (servicesUp) {
+    ArduinoOTA.handle();
+    webSocket.loop();
+  }
 
   bool ir1State = digitalRead(IR_SENSOR_1);
   bool ir2State = digitalRead(IR_SENSOR_2);
@@ -128,11 +157,12 @@ void loop() {
   }
 
   // Send the room's light level to the server every 5 seconds
-  if (webSocket.isConnected() && millis() >= nextLightSend) {
+  if (servicesUp && webSocket.isConnected() && millis() >= nextLightSend) {
     nextLightSend = millis() + LIGHT_SEND_MS;
     String msg = String("{\"type\": \"light\", \"raw\": ") + readLight() + "}";
     webSocket.sendTXT(msg);
   }
 
   displayUpdate();
+  delay(1);   // lets the Wi-Fi background tasks breathe
 }
