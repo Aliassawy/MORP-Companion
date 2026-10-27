@@ -22,3 +22,4 @@ void displayWeather(unsigned long ms);
 void displayClock(unsigned long ms);
 Mood displayParseMood(const char* s);
 void displaySetSleepAfter(unsigned long ms);
+void displayCue(Mood m, unsigned long ms, bool talk = true);

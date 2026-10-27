@@ -176,6 +176,15 @@ static const Beh BEH[MOOD_COUNT] = {
 // ======================= State =======================
 enum Mode { MODE_FACE, MODE_TEXT, MODE_WEATHER, MODE_CLOCK };
 
+// face script queue: expressions played one after another
+struct FaceCue { Mood mood; unsigned long ms; bool talk; };
+static FaceCue cue[10];
+static uint8_t cueLen = 0;
+
+void displayCue(Mood m, unsigned long ms, bool talk) {
+  if (cueLen < 10) cue[cueLen++] = {m, ms, talk};
+}
+
 static Mode mode = MODE_FACE;
 static Mood mood = MOOD_NORMAL;          // requested by the program
 static Mood shown = MOOD_NORMAL;         // actually drawn (adds sleep and fidgets)
@@ -857,6 +866,13 @@ void displayUpdate() {
   if (now >= moodUntil) {
     if (pendingText && mode == MODE_FACE) { pendingText = false; startText(0); }
     if (mood != MOOD_NORMAL || talking) { mood = MOOD_NORMAL; talking = false; }
+  }
+
+    // play the next queued expression once the face is free
+  if (mode == MODE_FACE && !talking && !pendingText && cueLen > 0 && now >= moodUntil) {
+    FaceCue c = cue[0];
+    memmove(cue, cue + 1, (--cueLen) * sizeof(cue[0]));
+    displayMood(c.mood, c.ms, c.talk);
   }
 
   bool idleFace = (mode == MODE_FACE && mood == MOOD_NORMAL && !talking && !pendingText);

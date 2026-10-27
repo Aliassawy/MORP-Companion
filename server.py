@@ -87,6 +87,7 @@ sleep_sent = None
 recent = deque(maxlen=5)
 history = deque(maxlen=10)
 touches = {}
+last_touch_llm = 0.0
 llm_lock = threading.Lock()
 last_reply = {"mood": "normal", "text": ""}   # what the website shows as MORP's latest words
 
@@ -248,13 +249,40 @@ def parse_and_save_facts(response_text: str) -> str:
 
 
 def parse_mood(text: str):
+    tag = re.search(r"\[MOOD:\s*(\w*)\s*\]", text, re.I)
+    mood = tag.group(1).lower() if tag else "normal"
+    mood = ALIASES.get(mood, mood)
+    if mood not in MOODS:
+        mood = "normal"
+    return mood, re.sub(r"\[MOOD:\s*\w*\s*\]", "", text, flags=re.I).strip()
+
+SEG_RE = re.compile(r"\[MOOD:\s*(\w*)\s*\]")   # \w* not \w+ — catches empty tags
+
+def parse_mood(text: str):
+    """Website mood display only."""
     tag = re.search(r"\[MOOD:\s*(\w+)\s*\]", text, re.I)
     mood = tag.group(1).lower() if tag else "normal"
     mood = ALIASES.get(mood, mood)
     if mood not in MOODS:
         mood = "normal"
-    return mood, re.sub(r"\[MOOD:\s*\w+\s*\]", "", text, flags=re.I).strip()
+    return mood, SEG_RE.sub("", text).strip()
 
+def parse_face_script(text):
+    parts = SEG_RE.split(text)
+    segs = []
+    for i in range(1, len(parts), 2):
+        mood = ALIASES.get(parts[i].lower(), parts[i].lower())
+        if mood not in MOODS:
+            mood = "normal"
+        segs.append((mood, parts[i + 1].strip()))
+    return segs or [("normal", text.strip())]
+
+async def send_face_script(segments):
+    cues = []
+    for mood, seg_text in segments:
+        words = max(1, len(seg_text.split()))
+        cues.append({"mood": mood, "ms": min(6000, max(900, words * 380)), "talk": True})
+    await send_to_esp({"type": "faces", "cues": cues})
 
 def chat(messages: list, use_tools: bool) -> str:
     if not use_tools:
@@ -298,7 +326,15 @@ def query_morp(user_input: str, remember: bool = True, use_tools: bool = True, s
         f"--- USER FACTS DATABASE ---\n{get_all_facts()}\n---------------------------\n\n"
         f"{state.describe()}\n\n"
         f"--- FACE RULES ---\n"
-        f"You have a face on a small screen. Begin EVERY reply with one mood tag, "
+                f"--- FACE RULES ---\n"
+        f"You have a face on a small screen. Tag EACH sentence or phrase with its own "
+        f"mood tag from:\n{mood_lines}\n"
+        f"Format: [MOOD: happy] first sentence. [MOOD: smug] second sentence.\n"
+        f"Use 2-4 tags per reply so your face re-expresses your tone as you 'speak'. "
+        f"Match each tag to the tone of the words right after it, and vary them: "
+        f"do not use the same mood twice in a row.\n"
+        f"Recent replies (avoid repeating their moods/wording):\n{recent_lines}\n"
+        f"------------------\n\n"
         f"for example [MOOD: happy], chosen from:\n{mood_lines}\n"
         f"Pick the mood that matches how you genuinely feel about what just happened "
         f"or what you are saying. Use the whole range. Do not default to smug, and do "
@@ -399,7 +435,7 @@ async def api_chat(d: dict = Body(...)):
         print(f"[ERROR] {e}")
         await send_to_esp({"type": "face", "mood": "sad", "seconds": 3})
         return JSONResponse({"error": str(e)}, status_code=500)
-    await send_to_esp({"type": "say", "mood": mood, "text": to_ascii(reply)})
+        await send_face_script(parse_face_script(reply))
     return {"mood": mood, "reply": reply}
 
 
@@ -408,7 +444,6 @@ async def api_chat(d: dict = Body(...)):
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     global esp_ws, busy
-    await websocket.accept()
     esp_ws = websocket
     print("\n[SERVER] ESP32 connected over WebSocket!")
     await push_sleep_after(force=True)
@@ -442,8 +477,10 @@ async def websocket_endpoint(websocket: WebSocket):
             log.append(now)
             count = sum(1 for t in log if now - t < 20)
 
-            if busy:
-                continue
+            global last_touch_llm
+            if busy or time.time() - last_touch_llm < 3:
+                continue                         // ESP already showed a reaction face; skip the AI call
+            last_touch_llm = time.time()
             busy = True
             try:
                 event = (
@@ -455,7 +492,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 )
                 mood, reply = await asyncio.to_thread(query_morp, event, False, False, "touch")
                 print(f"MORP [{mood}]: {reply}")
-                await send_to_esp({"type": "say", "mood": mood, "text": to_ascii(reply)})
+                await send_face_script(parse_face_script(reply))
             except Exception as e:
                 print(f"[ERROR] {e}")
             finally:

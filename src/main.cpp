@@ -25,8 +25,9 @@ template <size_t N> Mood pickMood(const Mood (&a)[N]) { return a[random(N)]; }
 WebSocketsClient webSocket;
 unsigned long ledOffAt = 0;
 unsigned long nextLightSend = 0;
-bool lastIr1State = HIGH;
-bool lastIr2State = HIGH;
+bool ir1Debounced = false, ir2Debounced = false;
+unsigned long ir1Since = 0, ir2Since = 0;
+unsigned long ir1CooldownUntil = 0, ir2CooldownUntil = 0;
 
 // ---------- Light sensor ----------
 int readLight() {
@@ -60,6 +61,12 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
       else if (!strcmp(t, "weather"))      displayWeather(5000);
       else if (!strcmp(t, "clock"))        displayClock(ms);
       else if (!strcmp(t, "sleep_after"))  displaySetSleepAfter(ms);
+      else if (!strcmp(t, "faces")) {
+        for (JsonObject c : doc["cues"].as<JsonArray>())
+          displayCue(displayParseMood(c["mood"] | "normal"),
+                     (unsigned long)(c["ms"] | 1500),
+                     c["talk"] | true);
+      }
       break;
     }
     default:
@@ -96,8 +103,8 @@ void startServices() {
 // ---------- Setup / Loop ----------
 void setup() {
   Serial.begin(115200);
-  pinMode(IR_SENSOR_1, INPUT);
-  pinMode(IR_SENSOR_2, INPUT);
+    pinMode(IR_SENSOR_1, INPUT_PULLUP);   // stop the pin from floating
+  pinMode(IR_SENSOR_2, INPUT_PULLUP);
   pinMode(STATUS_LED, OUTPUT);
   pinMode(LDR_PIN, INPUT);
 
@@ -144,12 +151,21 @@ void loop() {
     webSocket.loop();
   }
 
-  bool ir1State = digitalRead(IR_SENSOR_1);
-  bool ir2State = digitalRead(IR_SENSOR_2);
-  if (ir1State == LOW && lastIr1State == HIGH) trigger("IR1_Poke", pickMood(POKE_REACTS), 2200);
-  if (ir2State == LOW && lastIr2State == HIGH) trigger("IR2_Pet",  pickMood(PET_REACTS), 3000);
-  lastIr1State = ir1State;
-  lastIr2State = ir2State;
+    unsigned long nowMs = millis();
+  bool ir1Low = digitalRead(IR_SENSOR_1) == LOW;
+  bool ir2Low = digitalRead(IR_SENSOR_2) == LOW;
+
+  // Debounce: pin must stay LOW for 40ms to count, then 1.2s cooldown per sensor
+  if (ir1Low != ir1Debounced) { ir1Debounced = ir1Low; ir1Since = nowMs; }
+  else if (ir1Low && nowMs - ir1Since >= 40 && nowMs >= ir1CooldownUntil) {
+    ir1CooldownUntil = nowMs + 1200;
+    trigger("IR1_Poke", pickMood(POKE_REACTS), 2200);
+  }
+  if (ir2Low != ir2Debounced) { ir2Debounced = ir2Low; ir2Since = nowMs; }
+  else if (ir2Low && nowMs - ir2Since >= 40 && nowMs >= ir2CooldownUntil) {
+    ir2CooldownUntil = nowMs + 1200;
+    trigger("IR2_Pet", pickMood(PET_REACTS), 3000);
+  }
 
   if (ledOffAt && millis() >= ledOffAt) {
     digitalWrite(STATUS_LED, LOW);
